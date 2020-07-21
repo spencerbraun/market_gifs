@@ -1,58 +1,49 @@
-# install.packages("devtools")
-
-# devtools::install_github("thomasp85/gganimate")
-# devtools::install_github("thomasp85/transformr")
-
-
 library(tidyverse)
 library(ggplot2)
 library(gganimate)
 library(scales)
 library(ggthemes)
 library(hrbrthemes)
+library(lubridate)
+
 
 theme_set(hrbrthemes::theme_ipsum())
 
-aapl <- read_csv('/Users/spencerbraun/dev/repos/active_portfolio_mgmt/data/stocks/AAPL.csv')
+today <- today()
+date_named <- format(today, format="%B %d %Y")
+date_str <- format(today, format="%Y%m%d")
 
-aapl %>% ggplot(aes(x = Date, y= Close)) +
-  geom_line() +
-  ggtitle("{frame_time}") +
-  transition_time(Date) +
-  shadow_mark(past = TRUE, future = FALSE)
+today_dir <- str_interp('data_${date_str}')
+files <- list.files(today_dir)
 
+name <- read_file(str_interp('${today_dir}/name.csv'))
 
-daily <- read_csv('/Users/spencerbraun/dev/repos/market_gifs/data_20200716/SPCE_daily_1594930040.632224.csv')
-intraday <- read_csv('/Users/spencerbraun/dev/repos/market_gifs/data_20200716/SPCE_intraday_1594930040.632224.csv')
-intraday_path = '/Users/spencerbraun/dev/repos/market_gifs/data_20200716/SPCE_intraday_1594930040.632224.csv'
-symbol <- str_split(basename(intraday_path), "_")[[1]][1]
-today <- Sys.Date()
-date_formatted <- format(today, format="%B %d %Y")
+daily_path <- files[str_detect(files, "daily")]
+intr_path <- files[str_detect(files, "intraday")]
 
-min_close <- daily %>%
-  summarise(min(close)) %>%
-  pull(.)
+daily <- read_csv(str_interp('${today_dir}/${daily_path}'))
+intraday <- read_csv(str_interp('${today_dir}/${intr_path}'))
 
-max_close <- daily %>%
-  summarise(max(close)) %>%
-  pull(.)
-
+symbol <- str_split(basename(intr_path), "_")[[1]][1]
 
 
 dailyPlot <- daily %>% ggplot(aes(x = date, y= close)) +
   geom_line() +
-  labs(x="Date", y="", title=str_interp("${symbol}"),
-       subtitle=str_interp("Daily {frame_along}")) +
+  labs(x="Date", y="", title=str_interp("${name}"),
+       subtitle=str_interp("${symbol} Daily {frame_along}")) +
   transition_reveal(date)
 
 
 intradayPlot <- intraday %>% ggplot() +
   geom_line(aes(x=time, y=close)) +
-  labs(x="Time", y="", title=str_interp("${symbol}"),
-       subtitle=str_interp("Intraday {frame_along}")) +
+  labs(x="Time", y="", title=str_interp("${name}"),
+       subtitle=str_interp("${symbol} Intraday {intraday$time[which(intraday$time == frame_along)]}")) +
   transition_reveal(time)
 
+tail(intraday)
 
+animate(intradayPlot, height=400, width=800)
+anim_save(str_interp("${today_dir}/${symbol}_intraday_${today}.gif"))
 
-animate(intradayPlot, height = 400, width =800)
-anim_save(str_interp("${symbol}_intraday_${today}.gif"))
+animate(dailyPlot, height=400, width=800)
+anim_save(str_interp("${today_dir}/${symbol}_daily_${today}.gif"))
